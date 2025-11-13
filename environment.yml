@@ -1,4 +1,4 @@
-name: icu-survival
+name: bc-survival
 channels:
   - conda-forge
   - defaults
@@ -16,4 +16,6 @@ dependencies:
   - shap
   - pydantic
   - ipywidgets
-  - pip
+  - typing-extensions
+  - pip:
+    - scikit-survival
