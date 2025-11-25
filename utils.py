@@ -143,7 +143,7 @@ def build_preprocessor(numeric_cols, categorical_cols, num_strategy="median", ca
         # Using sparse=False for broad sklearn compatibility
         cat_tf = Pipeline(steps=[
             ("imputer", SimpleImputer(strategy=cat_strategy)),
-            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse=False))
+            ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False))
         ])
     else:
         cat_tf = "drop"
