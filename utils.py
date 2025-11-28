@@ -257,6 +257,35 @@ def check_calibration_competing_risk(
     return pd.DataFrame(rows)
 
 
+def fixed_horizon_metrics(y_true, p_prob, mask):    
+    y = np.asarray(y_true)[mask]
+    p = np.asarray(p_prob)[mask]
+    not_nan_mask = ~np.isnan(p)
+    y_clean = y[not_nan_mask]
+    p_clean = p[not_nan_mask]
+    
+    n_evaluable_final = not_nan_mask.sum()
+    
+    if n_evaluable_final == 0:
+        return {"auroc": np.nan, "auprc": np.nan, "brier": np.nan, "n_evaluable": 0}
+    if len(np.unique(y_clean)) > 1:
+        auroc = roc_auc_score(y_clean, p_clean)
+        auprc = average_precision_score(y_clean, p_clean)
+    else:
+        auroc = np.nan
+        auprc = np.nan
+        
+    brier = brier_score_loss(y_clean, p_clean)
+    
+    return {
+        "auroc": float(auroc),
+        "auprc": float(auprc),
+        "brier": float(brier), 
+        "n_evaluable": int(n_evaluable_final)
+    }
+
+
+
 def get_fixed_horizon_labels(y_df: pd.DataFrame, horizon_days: float):
     """
     Fixed-horizon binary outcome and evaluability in survival data
@@ -597,30 +626,63 @@ def plot_calibration_at_horizon(
 
 
 def fit_isotonic_calibrator(y_val, p_val):
-    """Fit an isotonic probability calibrator on validation predictions"""
-    y = np.asarray(y_val, dtype=int)
-    p = np.asarray(p_val, dtype=float)
-    eps = 1e-6
+    print("FIT ISOTONIC CALIBRATOR NEW FUNCTION")
+    not_nan_mask = ~np.isnan(p_val)
+    p_val_clean = p_val[not_nan_mask]
+    y_val_clean = y_val[not_nan_mask]
+
+    if len(p_val_clean) < 2: 
+        print("Warning: Insufficient valid data for calibrator fitting.")
+        return None
+
     cal = IsotonicRegression(out_of_bounds="clip")
-    cal.fit(np.clip(p, eps, 1 - eps), y)
+    eps = 1e-6
+    
+    cal.fit(np.clip(p_val_clean, eps, 1 - eps), y_val_clean.astype(int))
     return cal
 
 
-def apply_calibrator(cal, p):
-    """Apply a fitted calibrator to probabilities"""
-    p = np.asarray(p, dtype=float)
+
+def apply_calibrator(calibrator, p_in):
+    print("APPLY CALIBRATOR NEW FUNCTION")
+    if calibrator is None:
+        return p_in
+    p_out = np.full_like(p_in, np.nan, dtype=float)
+    not_nan_mask = ~np.isnan(p_in)
+    p_in_clean = p_in[not_nan_mask]
+    
     eps = 1e-6
-    return np.clip(cal.transform(np.clip(p, eps, 1 - eps)), 0, 1)
+    
+    # p_calibrated = calibrator.transform(np.clip(p_in_clean, eps, 1 - eps))
+    # p_calibrated = calibrator.transform(np.clip(p_in_clean, eps, 1 - eps)).ravel()
+    p_calibrated = calibrator.transform(np.clip(p_in_clean, eps, 1 - eps)).to_numpy().ravel()
+    p_out[not_nan_mask] = p_calibrated
+    
+    return p_out
 
 
-def fixed_horizon_metrics(y_true, p_prob, mask):
-    """AUROC, AUPRC, Brier, n_evaluable on the evaluable cohort for a horizon"""
-    y = np.asarray(y_true)[mask]
-    p = np.asarray(p_prob)[mask]
-    auroc = roc_auc_score(y, p) if len(np.unique(y)) > 1 else np.nan
-    auprc = average_precision_score(y, p)
-    brier = brier_score_loss(y, p)
-    return {"auroc": float(auroc), "auprc": float(auprc), "brier": float(brier), "n_evaluable": int(mask.sum())}
+# def apply_calibrator(cal, p):
+#     """Apply a fitted calibrator to probabilities"""
+#     p = np.asarray(p, dtype=float)
+#     eps = 1e-6
+#     return np.clip(cal.transform(np.clip(p, eps, 1 - eps)), 0, 1)
+
+
+
+# def apply_calibrator(cal, p):
+#     eps = 1e-6
+#     p = np.clip(p, eps, 1 - eps)
+#     return np.clip(cal.transform(p), 0, 1)
+
+
+# def fixed_horizon_metrics(y_true, p_prob, mask):
+#     """AUROC, AUPRC, Brier, n_evaluable on the evaluable cohort for a horizon"""
+#     y = np.asarray(y_true)[mask]
+#     p = np.asarray(p_prob)[mask]
+#     auroc = roc_auc_score(y, p) if len(np.unique(y)) > 1 else np.nan
+#     auprc = average_precision_score(y, p)
+#     brier = brier_score_loss(y, p)
+#     return {"auroc": float(auroc), "auprc": float(auprc), "brier": float(brier), "n_evaluable": int(mask.sum())}
 
 # utils.py
 
@@ -655,18 +717,34 @@ def select_threshold_by_net_benefit(y_val, p_val, thresholds):
     return float(nb.loc[nb["nb_model"].idxmax(), "threshold"])
 
 
-def fit_isotonic_calibrator(y_val, p_val):
-    """Fit isotonic calibration on validation"""
-    cal = IsotonicRegression(out_of_bounds="clip")
-    eps = 1e-6
-    cal.fit(np.clip(p_val, eps, 1 - eps), y_val.astype(int))
-    return cal
+# def fit_isotonic_calibrator(y_val, p_val):
+#     """Fit isotonic calibration on validation"""
+#     cal = IsotonicRegression(out_of_bounds="clip")
+#     eps = 1e-6
+#     cal.fit(np.clip(p_val, eps, 1 - eps), y_val.astype(int))
+#     return cal
 
 
-def apply_calibrator(cal, p):
-    eps = 1e-6
-    p = np.clip(p, eps, 1 - eps)
-    return np.clip(cal.transform(p), 0, 1)
+# def fit_isotonic_calibrator(y_val, p_val):
+#     # --- FIX: Create a mask to filter out NaN values ---
+#     print("FIT ISOTONIC CALIBRATOR NEW FUNCTION")
+#     not_nan_mask = ~np.isnan(p_val)
+#     p_val_clean = p_val[not_nan_mask]
+#     y_val_clean = y_val[not_nan_mask]
+
+#     # Check if there is enough data left to fit
+#     if len(p_val_clean) == 0:
+#         print("Warning: No valid predictions found for calibrator fitting.")
+#         return None
+
+#     # Isotonic Regression fit requires finite numbers
+#     cal = IsotonicRegression(out_of_bounds="clip")
+#     eps = 1e-6
+    
+#     # Fit using only the clean data
+#     cal.fit(np.clip(p_val_clean, eps, 1 - eps), y_val_clean.astype(int))
+#     return cal
+
 
 
 def fixed_horizon_metrics(y_true, p_prob, mask):
