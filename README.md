@@ -1,6 +1,6 @@
 # Breast Cancer Survival Analysis
 
-A clear, end-to-end walkthrough of breast cancer survival analysis. The project progresses from cohort curation and Kaplan-Meier exploration to multivariable Cox proportional hazards modeling and machine learning models evaluated at clinically actionable horizons.
+This project progresses from cohort curation and Kaplan-Meier exploration to multivariable Cox proportional hazards modeling and ML models evaluated at clinically actionable horizons in order to analyze the survival of Breast Cancer Patients.
 
 
 
