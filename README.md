@@ -1,116 +1,139 @@
-# ICU Survival Analysis
+# Breast Cancer Survival Analysis
 
-A clear, end to end walkthrough of intensive care unit survival analysis across three Jupyter notebooks. The pipeline progresses from cohort curation and Kaplan-Meier exploration to multivariable Cox proportional hazards modeling and finally decision tree and random forest models evaluated at clinically actionable horizons
+A clear, end-to-end walkthrough of breast cancer survival analysis. The project progresses from cohort curation and Kaplan-Meier exploration to multivariable Cox proportional hazards modeling and machine learning models evaluated at clinically actionable horizons.
+
+
 
 ## Repository structure
 
-- 01_ICU_Survival_analysis_KM.ipynb
-- 02_ICU_Survival_analysis_CPH.ipynb
-- 03_ICU_Survival_analysis_DT_RF.ipynb
+This repository contains the core analysis notebook and utility scripts:
+
+- `BC_survival.ipynb`: The main Jupyter Notebook containing the full analysis, from data loading to model evaluation.
+- `utils.py`: A collection of helper functions for plotting, preprocessing, modeling, and evaluation.
+- `environment.yml`: A Conda environment file to ensure reproducibility of the analysis.
+
+
+
 
 ## Dataset
 
-- Source dataset is PhysioNet Computing in Cardiology Challenge 2012, Set A, with 4 000 de-identified ICU stays
-- Engineered variables include `duration` in days, `event` indicator for in-hospital death, severity scores such as SAPS-I and SOFA, ICU service type, and basic descriptors
-- Censoring aligns with the challenge definitions so that survival times and event flags are consistent across notebooks
+The analysis is performed on a breast cancer cohort (ASK ANNA WHERE SHE GOT THE DATASET).
+
+- **Features**: Key clinical and pathological variables such as patient age, tumor size, grade, lymph node status, and hormone receptor status (ER, PR, HER2).
+- **Outcomes**: The primary outcomes are survival time (`duration`) and an event indicator (`event`) for death. The analysis also supports competing risks, such as death from other causes versus death from breast cancer.
+- **Censoring**: Patients lost to follow-up or alive at the end of the study period are considered censored.
+
+
 
 ## Environment and reproducibility
 
 - Python 3.11 recommended
-- Key libraries include pandas, numpy, matplotlib, scikit-learn, lifelines, scikit-survival, jupyterlab
-- Create an isolated environment with Conda or uv, then run `jupyter lab`
-- Set dataset paths at the top of each notebook if your files live outside the repo
+- Key libraries include`matplotlib`, `scikit-learn`, `lifelines`, `scikit-survival`, ...
+- To ensure reproducible environment, use the provided `environment.yml` file with Conda (located on root directory), which contains all necessary libraries:
+  ```bash
+  conda env create -f environment.yml
+  conda activate breast-cancer-survival
+  jupyter lab
+  ```
+
+
 
 ## Workflow at a glance
 
-| Notebook | Primary focus | Representative outputs |
-| --- | --- | --- |
-| 01_ICU_Survival_analysis_KM.ipynb | Data validation, censoring checks, Kaplan-Meier curves, cumulative incidence, Nelson-Aalen, subgroup log-rank tests | Survival probabilities at 7, 30, 90 days, median survival, 90-day restricted mean survival time, SAPS-I stratified comparisons |
-| 02_ICU_Survival_analysis_CPH.ipynb | Leakage-aware preprocessing, univariable and multivariable Cox proportional hazards, proportional hazards diagnostics, time-dependent metrics, baseline comparisons | Hazard ratios for age, SOFA, ICU type, concordance index, Brier and calibration curves |
-| 03_ICU_Survival_analysis_DT_RF.ipynb | Shared preprocessing, decision tree and random forest classifiers at fixed horizons, threshold analysis, decision curves, subgroup checks, final comparison | AUROC at 7, 30, 60-day horizons, operating-point guidance, subgroup stability and fairness checks |
+The analysis is structured to provide a comprehensive view of patient survival through combining traditional biostatistics with ML.
+
+| Section | Primary Focus | Representative Outputs |
+|---|---|---|
+| **1. Exploratory Data Analysis** | Data validation, censoring checks, Kaplan-Meier curves, cumulative incidence functions (CIF), log-rank tests for subgroups. | Survival probabilities at 1, 5, 10 years; median survival time; comparisons by tumor grade or hormone receptor status. |
+| **2. Cox Proportional Hazards** | Univariable and multivariable Cox modeling, checking proportional hazards assumption, interpreting hazard ratios. | Hazard Ratios (HR) for key predictors (age, tumor size), concordance index, time-dependent AUROC, calibration analysis. |
+| **3. Fixed-Horizon Prediction** | Decision Tree and Random Forest models for predicting survival at specific time points (5-year survival). | AUROC, AUPRC, and Brier scores at 1, 5, and 10-year horizons; decision curve analysis for clinical utility. |
+
+
 
 ## End to end process
 
-### 1) Cohort QC and Kaplan-Meier exploration
+### 1. Cohort QC and Kaplan-Meier Exploration
 
-- Confirms in-hospital death rate of 13.85 percent before modeling
-- Kaplan-Meier survival probabilities at 7, 30, 90 days are 0.942, 0.713, 0.341
-- Median survival time is 58 days and 90-day restricted mean survival time is 56.5 days overall
-- SAPS-I severity tertiles show expected separation in survival time, roughly 49.5 to 61.2 days across bands
-- Log-rank testing shows no statistically significant difference by sex with p ≈ 0.25, while SAPS-I differences are significant
+This initial phase establishes a baseline understanding of the cohort's survival characteristics.
 
-Practical use
-- Treat the KM curves as a cohort baseline for risk communication and for sanity-checking later model outputs
-- Use subgroup curves to identify strata that may need separate thresholds or escalation paths
+**Practical Use**:
+- Use Kaplan-Meier curves as a non-parametric baseline for risk communication and for sanity-checking later model outputs.
+- Identify significant prognostic subgroups (based on tumor grade) that may require stratified analysis or tailored treatment strategies.
 
-### 2) Cox proportional hazards modeling
 
-- Train only on the training split to avoid leakage, keep validation and test for honest assessment
-- Age alone has a hazard ratio of 0.992 and weak concordance of 0.518, which motivates a multivariable approach
-- A penalized multivariable Cox model reaches validation concordance near 0.659 with interpretable hazard ratios
-- SOFA is the dominant risk driver with HR ≈ 1.088 per unit, and the CSRU ICU type indicator appears protective with HR ≈ 0.420
-- Time-dependent area under the curve and Brier score show the model is a moderate but actionable screener at 7, 30, 60 days
-- Calibration against cohort baselines improves with isotonic calibration when needed
 
-Practical use
-- Use Cox when effect sizes and explanatory narratives are required
-- Favor this model to inform pathway design and feature prioritization, even if a tree ensemble wins on raw discrimination
+### 2. Cox Proportional Hazards Modeling
 
-### 3) Decision tree and random forest horizon models
+This section builds interpretable models to understand how different clinical factors contribute to patient risk over time.
 
-- Reuse the same stratified splits and preprocessing for leakage-free, apples-to-apples comparisons
-- Decision trees deliver AUROC around 0.68 to 0.76 at 7 days, trading a little accuracy for high transparency
-- Random forests improve short-term discrimination to AUROC ≈ 0.82 at 7 days
-- Subgroup review shows gender AUROC gap of roughly 0.871 vs 0.778, which merits monitoring before deployment
-- Choose thresholds using workload-aware trade-offs, then check calibration and decision curves at the chosen operating point
+**Practical Use**:
+- Use the Hazard Ratios from the Cox model to explain the magnitude and direction of risk associated with factors like tumor size or lymph node involvement.
+- The model can inform clinical pathway design and feature prioritization for future research.
 
-Practical use
-- Use random forests for maximal predictive accuracy and alerts, backed by calibration checks
-- Use decision trees when simple if-then rules are preferred at the bedside
+
+
+### 3. Fixed-Horizon Prediction Models
+
+This final phase focuses on building high-performance machine learning models to predict individual patient outcomes at fixed, clinically relevant time points (for instance, 5-year survival).
+
+**Practical Use**:
+- Use Random Forest models for maximal predictive accuracy when creating risk stratification tools.
+- Use Decision Trees when simple, transparent if-then rules are preferred for clinical decision support.
+- Decision curve analysis helps select risk thresholds that align with clinical priorities, balancing the trade-off between true positives and false positives.
+
+
 
 ## Model comparison and selection
 
-- For 7-day risk, random forests dominate discrimination while keeping acceptable calibration after post-processing
-- By 30 days, models converge and Cox plus random forest give the most reliable low-risk calibration
-- By 60 days, decision trees catch up on discrimination, narrowing the gap while staying easier to explain
+- The Cox model provides the best interpretability for understanding prognostic factors.
+- Random Forest models typically offer the highest discrimination (AUROC) for fixed-horizon prediction.
+- All models are evaluated for discrimination and calibration to ensure that predictions are accurate in ranking patients and also reliable in their absolute risk estimates.
+
+
 
 ## How to reproduce
 
-1. Launch JupyterLab inside the environment
-2. Run the notebooks in order 01, then 02, then 03
-3. Update the dataset path at the top of 01 if your files are elsewhere
-4. Expect 01 to run in minutes on a modern laptop, while 03 may take longer depending on CPU cores
-5. Save figures to disk if running headless
+1.  Set up the Conda environment using `environment.yml`.
+2.  Launch JupyterLab and open `BC_survival.ipynb`.
+3.  Update the dataset path at the top of the notebook.
+4.  Run the cells in order to reproduce the analysis and review the outputs and added explanations.
+
+
+
 
 ## Outputs to expect
 
-- KM plots with 7, 30, 90 day survival estimates and subgroup curves
-- Cox model summary with hazard ratios, concordance, calibration and Brier curves
-- Decision tree diagram with rules at the selected depth
-- Random forest performance table with AUROC, precision, recall, thresholds by horizon
-- Cross-model comparison figure and brief written guidance for use in clinical workflows
+- Kaplan-Meier plots with survival estimates and subgroup comparisons.
+- Cox model summary table with hazard ratios, p-values, and concordance index.
+- Calibration plots and Brier scores for all models.
+- Performance tables for machine learning models, including AUROC and AUPRC by horizon.
+- Decision curve analysis plots to assess clinical utility.   
+
+
+
 
 ## Extending the analysis
 
-- Swap in a local cohort that matches the PhysioNet schema for external validation and local calibration
-- Engineer additional features such as time-windowed labs and ventilator settings to improve discrimination
-- Expand fairness and stability checks across additional demographics and comorbidities
-- Use decision curves and cost assumptions to pick thresholds that fit staffing capacity
+- **External Validation**: Swap in a different breast cancer cohort to validate the models' generalizability.
+- **Feature Engineering**: Incorporate genomic data (gene expression, etc.) or treatment information to help improve predictive performance.
+- **Advanced Models**: Experiment with other survival models like Gradient Boosted Trees (XGBoost) or deep learning approaches.
+
+
+
 
 ## Troubleshooting
 
-- Install scikit-survival from conda-forge to avoid compilation issues
-- Use pandas `usecols` to lower memory if you only need a subset of columns
-- If interactive backends are not available, export Matplotlib figures directly to disk
+- Ensure `scikit-survival` is installed from `conda-forge` to avoid compilation issues.
+- If running into memory issues with large datasets, use `pandas.read_csv` with the `usecols` parameter to load only necessary columns.
 
 ## Ethical use and limitations
 
-- Models are trained on a historical research cohort and are not a substitute for clinical judgment
-- Performance can drift with local case-mix, care protocols, and data coding, so perform local validation and calibration
-- Review subgroup performance before deploying any alert that could affect resource allocation
+- These models are trained on historical data and are intended for research and decision support, not as a substitute for clinical judgment.
+- Model performance may vary on different populations. Local validation and calibration are essential before any clinical application.
+- It is crucial to review model performance across relevant demographic and clinical subgroups to ensure fairness and equity.
 
 ## License and citation
 
 - Code under the MIT License
-- Dataset usage follows PhysioNet credentialed access terms
-- When using this repository, cite the PhysioNet Challenge 2012 dataset, Harrell’s Regression Modeling Strategies, and work on Random Survival Forests by Ishwaran and colleagues
+- The code in this repository is available under the MIT License.
+- Please cite the original source of the dataset used in analysis.
