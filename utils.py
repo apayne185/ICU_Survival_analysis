@@ -378,6 +378,35 @@ def _validate_competing(y_df: pd.DataFrame, death_col: str, comp_col: str) -> No
 # ==== utils.py additions ====
 
 
+def fixed_horizon_metrics(y_true, p_prob, mask):
+    """AUROC, AUPRC, Brier, n_evaluable on the evaluable cohort"""
+    y = np.asarray(y_true)[mask]
+    p = np.asarray(p_prob)[mask]
+
+    not_nan_mask = ~np.isnan(p)
+    y_clean = y[not_nan_mask]
+    p_clean = p[not_nan_mask]
+
+    n_evaluable_final = not_nan_mask.sum()
+    if n_evaluable_final == 0:
+        return {"auroc": np.nan, "auprc": np.nan, "brier": np.nan, "n_evaluable": 0}
+
+    # 3. Calculate metrics using the clean data
+    if len(np.unique(y_clean)) > 1:
+        auroc = roc_auc_score(y_clean, p_clean)
+        auprc = average_precision_score(y_clean, p_clean)
+    else:
+        auroc = np.nan
+        auprc = np.nan
+
+    # auroc = roc_auc_score(y, p) if len(np.unique(y)) > 1 else np.nan
+    # auprc = average_precision_score(y, p)
+    brier = brier_score_loss(y_clean, p_clean)
+    return {"auroc": float(auroc), "auprc": float(auprc), "brier": float(brier), "n_evaluable": int(n_evaluable_final)}
+
+
+
+
 def predict_fixed_horizon_risk_from_cox(cph_model,
                                         X_df: pd.DataFrame,
                                         times: np.ndarray) -> pd.DataFrame:
@@ -745,13 +774,3 @@ def select_threshold_by_net_benefit(y_val, p_val, thresholds):
 #     cal.fit(np.clip(p_val_clean, eps, 1 - eps), y_val_clean.astype(int))
 #     return cal
 
-
-
-def fixed_horizon_metrics(y_true, p_prob, mask):
-    """AUROC, AUPRC, Brier, n_evaluable on the evaluable cohort"""
-    y = np.asarray(y_true)[mask]
-    p = np.asarray(p_prob)[mask]
-    auroc = roc_auc_score(y, p) if len(np.unique(y)) > 1 else np.nan
-    auprc = average_precision_score(y, p)
-    brier = brier_score_loss(y, p)
-    return {"auroc": float(auroc), "auprc": float(auprc), "brier": float(brier), "n_evaluable": int(mask.sum())}
